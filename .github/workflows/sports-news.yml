@@ -23,10 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - uses: actions/checkout@v5
+      # Python は ubuntu-latest に標準で入っているものを使う
       - name: ニュース収集
         run: python3 sports_news/fetch_news.py --out site
       - name: 収集結果の確認
@@ -42,7 +40,7 @@ jobs:
           EOF
           echo "### 収集結果" >> "$GITHUB_STEP_SUMMARY"
           python3 -c "import json;d=json.load(open('site/news.json'));print(f\"合計 {len(d['items'])} 件\")" >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: site
 

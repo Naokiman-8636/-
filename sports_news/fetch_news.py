@@ -129,6 +129,8 @@ def collect(cfg: dict, now: datetime) -> tuple[list[Item], list[str]]:
             title = clean_title(title, source)
             if not title or not link:
                 continue
+            if any(k in title for k in cfg.get("exclude_keywords", [])):
+                continue
             if pub is not None and pub < cutoff:
                 continue
             key = norm_key(title)

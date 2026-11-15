@@ -22,11 +22,6 @@
       "name": "Yahoo!ニュース スポーツ",
       "url": "https://news.yahoo.co.jp/rss/topics/sports.xml",
       "section": "auto"
-    },
-    {
-      "name": "Google ニュース（スポーツ）",
-      "url": "https://news.google.com/rss/search?q=%E3%82%B9%E3%83%9D%E3%83%BC%E3%83%84+when:1d&hl=ja&gl=JP&ceid=JP:ja",
-      "section": "auto"
     }
   ],
   "sumo_keywords": [
@@ -53,5 +48,11 @@
     "本場所",
     "巡業",
     "相撲協会"
+  ],
+  "exclude_keywords": [
+    "ライブ配信",
+    "無料視聴",
+    "逮捕",
+    "容疑者"
   ]
 }
