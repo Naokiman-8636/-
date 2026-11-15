@@ -104,6 +104,8 @@ def clean_title(title: str, source: str) -> str:
 
 
 def norm_key(title: str) -> str:
+    # Yahoo!ニュースは末尾に「（媒体名）」が付くので、重複判定では取り除く
+    title = re.sub(r"[（(][^（）()]{1,20}[）)]\s*$", "", title)
     return re.sub(r"[\s　「」『』【】（）()・、。！!？?\"'”“]", "", title)[:40]
 
 
@@ -125,21 +127,30 @@ def collect(cfg: dict, now: datetime) -> tuple[list[Item], list[str]]:
             # GitHub Actions の画面に警告として表示される
             print(f"::warning::フィード取得失敗 {feed['name']}: {e}")
             continue
+        kept = old = dup = 0
+        newest = None
         for title, link, source, pub in entries:
+            if pub is not None and (newest is None or pub > newest):
+                newest = pub
             title = clean_title(title, source)
             if not title or not link:
                 continue
             if any(k in title for k in cfg.get("exclude_keywords", [])):
                 continue
             if pub is not None and pub < cutoff:
+                old += 1
                 continue
             key = norm_key(title)
             if key in seen:
+                dup += 1
                 continue
+            kept += 1
             seen.add(key)
             section = "sumo" if (feed["section"] == "sumo" or is_sumo(title, kw)) else "other"
             items.append(Item(title, link, source, (pub or now).isoformat(), section))
-        print(f"[ok] {feed['name']}: {len(entries)} entries", file=sys.stderr)
+        print(f"[ok] {feed['name']}: {len(entries)}件取得 → 採用{kept} / 古い{old} / 重複{dup}"
+              f"（最新 {newest:%m/%d %H:%M}）" if newest else f"[ok] {feed['name']}: {len(entries)}件取得 → 採用{kept}",
+              file=sys.stderr)
     items.sort(key=lambda i: i.published, reverse=True)
     return items, errors
 

@@ -22,6 +22,16 @@
       "name": "Yahoo!ニュース スポーツ",
       "url": "https://news.yahoo.co.jp/rss/topics/sports.xml",
       "section": "auto"
+    },
+    {
+      "name": "Google ニュース（スポーツ見出し）",
+      "url": "https://news.google.com/rss/headlines/section/topic/SPORTS?hl=ja&gl=JP&ceid=JP:ja",
+      "section": "auto"
+    },
+    {
+      "name": "Yahoo!ニュース スポーツ（カテゴリ）",
+      "url": "https://news.yahoo.co.jp/rss/categories/sports.xml",
+      "section": "auto"
     }
   ],
   "sumo_keywords": [
