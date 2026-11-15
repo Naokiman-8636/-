@@ -10,11 +10,21 @@
 - `static/` … アイコン・マニフェスト・使い方ページ（`howto.html`）。そのまま公開フォルダにコピーされます
 - Python 標準ライブラリのみ（pip インストール不要）
 
-## 初回セットアップ
-1. このブランチをデフォルトブランチ（main 等）にマージする（定時実行はデフォルトブランチでのみ動きます）
-2. リポジトリの Settings → Pages → Source を **GitHub Actions** にする
-3. Actions タブ →「朝のスポーツニュース」→ **Run workflow** で一度手動実行
-4. 公開 URL は https://naokiman-8636.github.io/-/ になります
+## 初回セットアップ（済んでいないのは 1 だけ）
+1. **GitHub Pages を有効にする**（リポジトリ所有者にしかできない設定です）
+   https://github.com/Naokiman-8636/-/settings/pages を開き、
+   「Build and deployment」→「Source」を **GitHub Actions** に変更
+2. Actions タブ →「朝のスポーツニュース」→ **Run workflow**（または Claude に再実行を依頼）
+3. 緑の ✓ になったら https://naokiman-8636.github.io/-/ が開けます
+
+## うまく動かないとき
+| 症状 | 原因と対策 |
+|---|---|
+| ページが 404 | Pages が未設定。上の手順 1 を実施し、ワークフローを再実行 |
+| deploy が「Get Pages site failed」で失敗 | 同上（Pages が無効） |
+| deploy が「not allowed to deploy to github-pages」で失敗 | デフォルトブランチ以外から公開しようとしている。デフォルトブランチで実行する |
+| 毎朝更新されない | 定時実行はデフォルトブランチのワークフローのみ動作。Actions タブで無効化されていないか確認 |
+| 記事が少ない・偏る | ワークフローのログ「ニュース収集」に配信元ごとの「採用/古い/重複」件数が出るので確認 |
 
 ## 家族（父など）に使ってもらう
 ページは公開されているので、URL を知っていればログイン不要・無料で誰でも見られます。
