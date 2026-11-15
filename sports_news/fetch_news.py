@@ -12,6 +12,7 @@ import argparse
 import html
 import json
 import re
+import shutil
 import sys
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -133,28 +134,55 @@ def collect(cfg: dict, now: datetime) -> tuple[list[Item], list[str]]:
 
 
 CSS = """
-:root{--bg:#f7f5f0;--card:#fff;--fg:#1d1d1f;--muted:#6b6b70;--line:#e4e0d8;--accent:#b3261e;--chip:#f1ece3}
-@media (prefers-color-scheme:dark){:root{--bg:#16161a;--card:#1f1f24;--fg:#ececf0;--muted:#9a9aa3;--line:#2e2e35;--accent:#ff8a80;--chip:#2a2a31}}
+:root{--bg:#faf8f3;--card:#fff;--fg:#111;--muted:#555;--line:#ddd6c8;--accent:#b3261e;--chip:#efe8da;--fs:20px}
+@media (prefers-color-scheme:dark){:root{--bg:#121214;--card:#1d1d21;--fg:#f4f4f6;--muted:#b4b4bc;--line:#34343c;--accent:#ff8a80;--chip:#2a2a31}}
+html.big{--fs:24px} html.huge{--fs:28px}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif}
-main{max-width:760px;margin:0 auto;padding:24px 16px 64px}
-header h1{font-size:1.5rem;margin:0}
-header p{margin:4px 0 0;color:var(--muted);font-size:.9rem}
-nav{display:flex;gap:8px;margin:16px 0 8px;position:sticky;top:0;background:var(--bg);padding:8px 0;z-index:1}
-nav a{padding:6px 14px;border-radius:999px;background:var(--chip);color:var(--fg);text-decoration:none;font-size:.9rem}
-section{margin-top:24px}
-h2{font-size:1.15rem;border-left:4px solid var(--accent);padding-left:10px;margin:0 0 8px}
-h2 small{color:var(--muted);font-weight:normal;font-size:.85rem}
-ul{list-style:none;margin:0;padding:0;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
-li{padding:12px 16px;border-top:1px solid var(--line)}
+body{margin:0;background:var(--bg);color:var(--fg);font:var(--fs)/1.65 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;-webkit-text-size-adjust:100%}
+main{max-width:760px;margin:0 auto;padding:20px 16px 64px}
+header h1{font-size:1.35em;margin:0;line-height:1.3}
+header p{margin:4px 0 0;color:var(--muted);font-size:.85em}
+.size{display:flex;align-items:center;gap:8px;margin:14px 0 0;font-size:16px;color:var(--muted);white-space:nowrap}
+.size button{font:inherit;font-size:18px;font-weight:700;color:var(--fg);background:var(--chip);border:2px solid transparent;border-radius:10px;min-width:64px;min-height:48px;padding:0 12px;cursor:pointer}
+.size button[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}
+nav{display:flex;gap:10px;margin:14px 0 0}
+nav a{flex:1;text-align:center;padding:10px 8px;border-radius:12px;background:var(--chip);color:var(--fg);text-decoration:none;font-weight:700;font-size:18px;white-space:nowrap}
+section{margin-top:28px}
+h2{font-size:1.15em;border-left:6px solid var(--accent);padding-left:10px;margin:0 0 10px}
+h2 small{color:var(--muted);font-weight:normal;font-size:.75em}
+ul{list-style:none;margin:0;padding:0;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+li{border-top:1px solid var(--line)}
 li:first-child{border-top:0}
-li a{color:var(--fg);text-decoration:none;font-weight:600}
-li a:hover{color:var(--accent)}
-.meta{display:block;color:var(--muted);font-size:.8rem;margin-top:2px}
-.new{color:var(--accent);font-weight:700;margin-right:6px}
+li a{display:block;padding:16px;color:var(--fg);text-decoration:none;font-weight:700}
+li a:active{background:var(--chip)}
+.meta{display:block;color:var(--muted);font-size:.75em;font-weight:normal;margin-top:4px}
+.new{display:inline-block;background:var(--accent);color:var(--card);font-size:.7em;border-radius:6px;padding:0 6px;margin-right:6px;vertical-align:.15em}
 .empty{padding:16px;color:var(--muted)}
-footer{margin-top:32px;color:var(--muted);font-size:.8rem}
+.top{display:block;text-align:center;margin:24px 0 0;padding:14px;border-radius:12px;background:var(--chip);color:var(--fg);text-decoration:none;font-weight:700}
+footer{margin-top:28px;color:var(--muted);font-size:.7em}
 """
+
+SIZE_JS = """
+(function(){var r=document.documentElement,k='fontsize';
+function set(v){r.classList.remove('big','huge');if(v!=='normal')r.classList.add(v);
+document.querySelectorAll('.size button').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.v===v)});
+try{localStorage.setItem(k,v)}catch(e){}}
+var v='normal';try{v=localStorage.getItem(k)||'normal'}catch(e){}
+set(v);document.querySelectorAll('.size button').forEach(function(b){b.onclick=function(){set(b.dataset.v)}});})();
+"""
+
+WEEK = "月火水木金土日"
+
+
+def when(d: datetime, now: datetime) -> str:
+    """「今日 6:10」「きのう 21:30」のような分かりやすい表記。"""
+    days = (now.date() - d.date()).days
+    hm = f"{d.hour}:{d.minute:02d}"
+    if days == 0:
+        return f"今日 {hm}"
+    if days == 1:
+        return f"きのう {hm}"
+    return f"{d.month}月{d.day}日 {hm}"
 
 
 def render(cfg: dict, items: list[Item], errors: list[str], now: datetime) -> str:
@@ -166,26 +194,37 @@ def render(cfg: dict, items: list[Item], errors: list[str], now: datetime) -> st
         lis = []
         for i in rows:
             d = datetime.fromisoformat(i.published)
-            fresh = '<span class="new">NEW</span>' if now - d < timedelta(hours=12) else ""
+            fresh = '<span class="new">新着</span>' if now - d < timedelta(hours=12) else ""
             lis.append(
-                f'<li>{fresh}<a href="{e(i.link)}" target="_blank" rel="noopener">{e(i.title)}</a>'
-                f'<span class="meta">{e(i.source)} ・ {d:%m/%d %H:%M}</span></li>'
+                f'<li><a href="{e(i.link)}" target="_blank" rel="noopener">{fresh}{e(i.title)}'
+                f'<span class="meta">{e(i.source)}・{when(d, now)}</span></a></li>'
             )
-        body = "\n".join(lis) if lis else '<li class="empty">該当するニュースはありません</li>'
+        body = "\n".join(lis) if lis else '<li class="empty">今日はニュースがありません</li>'
         return f'<section id="{sec_id}"><h2>{label} <small>{len(rows)}件</small></h2><ul>{body}</ul></section>'
 
-    err = f"<p>取得できなかったフィード: {e('; '.join(errors))}</p>" if errors else ""
+    err = "<p>※一部の配信元から取得できませんでした。</p>" if errors else ""
+    title = e(cfg["title"])
     return f"""<!doctype html>
 <html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{e(cfg['title'])}</title><style>{CSS}</style></head>
-<body><main>
-<header><h1>{e(cfg['title'])}</h1><p>{now:%Y年%m月%d日 %H:%M} 更新（直近{cfg.get('hours', 36)}時間）</p></header>
-<nav><a href="#sumo">相撲</a><a href="#other">その他スポーツ</a></nav>
-{block('sumo', '🏆 相撲')}
+<title>{title}</title>
+<meta name="theme-color" content="#b3261e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="スポーツ">
+<style>{CSS}</style></head>
+<body><main id="top">
+<header><h1>{title}</h1><p>{now.month}月{now.day}日（{WEEK[now.weekday()]}）{now.hour}時{now.minute:02d}分 更新</p></header>
+<div class="size" role="group" aria-label="文字の大きさ">文字の大きさ
+<button data-v="normal" aria-pressed="true">普通</button><button data-v="big" aria-pressed="false">大</button><button data-v="huge" aria-pressed="false">特大</button></div>
+<nav><a href="#sumo">相撲</a><a href="#other">その他のスポーツ</a></nav>
+{block('sumo', '相撲')}
 {block('other', 'その他のスポーツ')}
-<footer>{err}<p>見出しとリンクのみを掲載しています。記事の著作権は各配信元に帰属します。</p></footer>
-</main></body></html>
+<a class="top" href="#top">▲ いちばん上へ</a>
+<footer>{err}<p>毎朝7時ごろに新しくなります。見出しを押すと記事が開きます。</p><p>記事の著作権は各配信元に帰属します。</p></footer>
+</main><script>{SIZE_JS}</script></body></html>
 """
 
 
@@ -201,6 +240,10 @@ def main() -> int:
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    # アイコン・マニフェスト・使い方ページなどをコピー
+    for f in (HERE / "static").iterdir():
+        if f.is_file():
+            shutil.copy2(f, out / f.name)
     (out / "index.html").write_text(render(cfg, items, errors, now), encoding="utf-8")
     (out / "news.json").write_text(
         json.dumps({"generated": now.isoformat(), "items": [asdict(i) for i in items]},
