@@ -14,6 +14,7 @@ import json
 import re
 import shutil
 import sys
+import time
 import urllib.request
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, asdict
@@ -37,10 +38,17 @@ class Item:
     section: str  # "sumo" | "other"
 
 
-def fetch(url: str, timeout: int = 20) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return r.read()
+def fetch(url: str, timeout: int = 20, tries: int = 3) -> bytes:
+    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept-Language": "ja"})
+    for n in range(tries):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return r.read()
+        except Exception:
+            if n == tries - 1:
+                raise
+            time.sleep(3 * (n + 1))
+    raise RuntimeError("unreachable")
 
 
 def parse_date(text: str | None) -> datetime | None:
@@ -114,7 +122,8 @@ def collect(cfg: dict, now: datetime) -> tuple[list[Item], list[str]]:
             entries = parse_feed(fetch(feed["url"]), feed["name"])
         except Exception as e:  # 1つのフィードが落ちても全体は止めない
             errors.append(f"{feed['name']}: {e}")
-            print(f"[warn] {feed['name']}: {e}", file=sys.stderr)
+            # GitHub Actions の画面に警告として表示される
+            print(f"::warning::フィード取得失敗 {feed['name']}: {e}")
             continue
         for title, link, source, pub in entries:
             title = clean_title(title, source)
@@ -252,8 +261,10 @@ def main() -> int:
     )
     n_sumo = sum(i.section == "sumo" for i in items)
     print(f"done: {len(items)} items (sumo {n_sumo}) -> {out}/index.html", file=sys.stderr)
-    # 全フィードが失敗したときだけ異常終了
-    return 1 if len(errors) == len(cfg["feeds"]) else 0
+    if len(errors) == len(cfg["feeds"]):
+        # ページ自体は「取得できませんでした」表示で公開し、ワークフロー画面で気付けるようにする
+        print("::error::すべてのフィードの取得に失敗しました")
+    return 0
 
 
 if __name__ == "__main__":

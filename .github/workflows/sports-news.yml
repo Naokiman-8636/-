@@ -4,23 +4,24 @@ on:
   schedule:
     # 06:40 JST（GitHub の定時実行は数分〜十数分遅れることがあるため 7時より少し前に設定）
     - cron: "40 21 * * *"
+  # コードを更新したら、その場で作り直して公開する
+  push:
+    paths:
+      - "sports_news/**"
+      - ".github/workflows/sports-news.yml"
   workflow_dispatch: {}
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
+  group: sports-news-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -28,8 +29,43 @@ jobs:
           python-version: "3.12"
       - name: ニュース収集
         run: python3 sports_news/fetch_news.py --out site
+      - name: 収集結果の確認
+        run: |
+          python3 - <<'EOF'
+          import json
+          d = json.load(open("site/news.json", encoding="utf-8"))
+          items = d["items"]
+          sumo = [i for i in items if i["section"] == "sumo"]
+          print(f"合計 {len(items)} 件 / 相撲 {len(sumo)} 件")
+          for i in items[:15]:
+              print(f"  [{i['section']}] {i['title']} ({i['source']})")
+          EOF
+          echo "### 収集結果" >> "$GITHUB_STEP_SUMMARY"
+          python3 -c "import json;d=json.load(open('site/news.json'));print(f\"合計 {len(d['items'])} 件\")" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
+
+  deploy:
+    # 公開はデフォルトブランチのみ（他のブランチでは build の確認だけ行う）
+    if: github.ref_name == github.event.repository.default_branch
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+      actions: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: GitHub Pages の設定確認
+        uses: actions/configure-pages@v5
       - id: deploy
         uses: actions/deploy-pages@v4
+      - name: 定時実行が止まらないようにする
+        # GitHub は 60 日間リポジトリに動きがないと定時実行を自動停止するため、毎回有効化し直す
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow enable sports-news.yml --repo "${{ github.repository }}" || true
